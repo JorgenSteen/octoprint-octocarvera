@@ -1,0 +1,4 @@
+include README.md
+recursive-include octocarvera/templates *
+recursive-include octocarvera/translations *
+recursive-include octocarvera/static *

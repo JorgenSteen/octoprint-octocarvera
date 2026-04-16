@@ -1,0 +1,60 @@
+<form class="form-horizontal">
+    <div class="control-group">
+        <label class="control-label">Machine Name</label>
+        <div class="controls">
+            <input type="text" class="input-medium" placeholder="Carvera"
+                   data-bind="value: settings.plugins.octocarvera.machine_name">
+            <span class="help-inline">Display name in Home Assistant and MQTT topic segment. Change this if you have multiple Carvera machines on the same broker.</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">
+            <input type="checkbox"
+                   data-bind="checked: settings.plugins.octocarvera.send_init_on_connect">
+            Send Init on Connect
+        </label>
+        <div class="controls">
+            <span class="help-inline">Send connection init sequence (\n;\n) when OctoPrint connects.</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Connection Timeout (s)</label>
+        <div class="controls">
+            <input type="number" step="1" min="1" max="60"
+                   class="input-mini" placeholder="10"
+                   data-bind="value: settings.plugins.octocarvera.connection_timeout">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Serial Protocol</label>
+        <div class="controls">
+            <select data-bind="value: settings.plugins.octocarvera.protocol_mode">
+                <option value="plain_text">Plain Text (Community FW / Stock &le; 1.0.3)</option>
+                <option value="binary">Binary Framing (Stock FW 1.0.5+)</option>
+            </select>
+            <span class="help-inline">Stock firmware 1.0.5+ requires binary framing. Community firmware uses plain text. Reconnect after changing.</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Override Command Mode</label>
+        <div class="controls">
+            <select data-bind="value: settings.plugins.octocarvera.override_mode">
+                <option value="auto">Auto-detect from firmware</option>
+                <option value="community">Community Firmware 2.1+ ($F/$O)</option>
+                <option value="stock">Stock Firmware (M220/M223)</option>
+            </select>
+            <span class="help-inline">Auto detects firmware type on connect. Override manually if needed.</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">
+            <input type="checkbox"
+                   data-bind="checked: settings.plugins.octocarvera.mqtt_publish">
+            Publish to MQTT
+        </label>
+        <div class="controls">
+            <span class="help-inline">Publish machine data via MQTT for Home Assistant auto-discovery. Requires OctoPrint-MQTT plugin.</span>
+        </div>
+    </div>
+
+</form>

@@ -1,0 +1,107 @@
+<div id="sidebar_plugin_octocarvera">
+    <h1><span data-bind="text: machineModel() || 'Carvera'">Carvera</span>
+        <small class="octocarvera-versions" data-bind="visible: connected">
+            <span data-bind="visible: firmwareVersion">FW: <span data-bind="text: firmwareVersion"></span></span>
+            <span data-bind="visible: pluginVersion"> | v<span data-bind="text: pluginVersion"></span></span>
+        </small>
+    </h1>
+
+    <!-- E-Stop -->
+    <div data-bind="visible: connected">
+        <button class="btn octocarvera-estop" data-bind="click: estop" title="Emergency Stop"
+                style="width:100%;padding:8px;margin-bottom:6px;background:#d9534f;color:#fff;font-weight:bold;font-size:16px;border:2px solid #c9302c;border-radius:4px;">
+            E-STOP
+        </button>
+    </div>
+
+    <!-- Unlock -->
+    <div data-bind="visible: canUnlock() && state() === 'Alarm'">
+        <button class="btn btn-warning" data-bind="click: unlock" title="Send $X to clear alarm"
+                style="width:100%;padding:6px;margin-bottom:6px;font-weight:bold;">
+            Unlock Machine
+        </button>
+    </div>
+
+    <!-- State -->
+    <div class="octocarvera-status">
+        <strong>State:</strong>
+        <span data-bind="text: state, css: stateClass">Unknown</span>
+        <span data-bind="visible: haltReason() !== null" class="octocarvera-halt-badge" title="Halt reason code">H:<span data-bind="text: haltReason"></span></span>
+    </div>
+
+    <div data-bind="visible: connected">
+
+        <!-- Essential Indicators -->
+        <div class="octocarvera-indicators">
+            <div class="octocarvera-indicator-row">
+                <div class="octocarvera-indicator">
+                    <span class="octocarvera-ind-label">X</span>
+                    <span class="octocarvera-ind-value" data-bind="text: workX">0.000</span>
+                    <span class="octocarvera-ind-mpos" data-bind="text: machineX">0.000</span>
+                </div>
+                <div class="octocarvera-indicator">
+                    <span class="octocarvera-ind-label">Y</span>
+                    <span class="octocarvera-ind-value" data-bind="text: workY">0.000</span>
+                    <span class="octocarvera-ind-mpos" data-bind="text: machineY">0.000</span>
+                </div>
+                <div class="octocarvera-indicator">
+                    <span class="octocarvera-ind-label">Z</span>
+                    <span class="octocarvera-ind-value" data-bind="text: workZ">0.000</span>
+                    <span class="octocarvera-ind-mpos" data-bind="text: machineZ">0.000</span>
+                </div>
+                <div class="octocarvera-indicator">
+                    <span class="octocarvera-ind-label">A</span>
+                    <span class="octocarvera-ind-value" data-bind="text: workA">0.000</span>
+                    <span class="octocarvera-ind-mpos" data-bind="text: machineA">0.000</span>
+                </div>
+            </div>
+            <div class="octocarvera-indicator-row">
+                <div class="octocarvera-indicator"><span class="octocarvera-ind-label">Feed</span><span class="octocarvera-ind-value" data-bind="text: feedCurrent">0</span></div>
+                <div class="octocarvera-indicator"><span class="octocarvera-ind-label">Speed</span><span class="octocarvera-ind-value" data-bind="text: spindleCurrent">0</span></div>
+                <div class="octocarvera-indicator"><span class="octocarvera-ind-label">Tool</span><span class="octocarvera-ind-value"><span data-bind="text: toolDisplayName">-</span></span></div>
+                <div class="octocarvera-indicator"><span class="octocarvera-ind-label">Laser</span><span class="octocarvera-ind-value" data-bind="text: laserMode() ? 'ON' : 'OFF'">OFF</span></div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="octocarvera-section">
+            <h2>Navigation</h2>
+            <div class="octocarvera-btn-row">
+                <button class="btn btn-small" data-bind="click: gotoClearance, enable: gotoAllowed">Clearance</button>
+                <button class="btn btn-small" data-bind="click: gotoWorkOrigin, enable: gotoAllowed">Origin</button>
+            </div>
+            <div class="octocarvera-btn-row">
+                <button class="btn btn-small" data-bind="click: gotoAnchor1, enable: gotoAllowed">Anchor 1</button>
+                <button class="btn btn-small" data-bind="click: gotoAnchor2, enable: gotoAllowed">Anchor 2</button>
+            </div>
+        </div>
+
+        <!-- Job Controls -->
+        <div class="octocarvera-section">
+            <h2>Job</h2>
+            <div class="octocarvera-job-progress" data-bind="visible: playbackPercent() !== null">
+                <div class="progress progress-striped active" style="height:14px;margin:0 0 4px 0;">
+                    <div class="bar" data-bind="style: {width: playbackPercent() + '%'}"></div>
+                </div>
+                <small><span data-bind="text: playbackPercent">0</span>% &mdash; <span data-bind="text: playbackElapsed">0:00</span></small>
+            </div>
+            <div class="octocarvera-btn-row">
+                <button class="btn btn-small" data-bind="click: pause, enable: canPause">Pause</button>
+                <button class="btn btn-small" data-bind="click: resume, enable: canResume">Resume</button>
+                <button class="btn btn-small btn-warning" data-bind="click: cancel, enable: canCancel">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Restart -->
+        <div class="octocarvera-section">
+            <button class="btn btn-small btn-danger" data-bind="click: restartMachine, enable: canRestart" style="width:100%;">
+                Restart Machine
+            </button>
+        </div>
+
+    </div>
+
+    <div class="octocarvera-disconnected" data-bind="visible: !connected()">
+        <p><em>Not connected to Carvera</em></p>
+    </div>
+</div>

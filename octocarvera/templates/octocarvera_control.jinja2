@@ -1,0 +1,186 @@
+<div id="tab_plugin_octocarvera">
+    <div class="octocarvera-tab">
+
+        <!-- Upload Progress (prominent position) -->
+        <div data-bind="visible: uploadInProgress" class="octocarvera-upload-banner">
+            <div style="font-size:16px;font-weight:bold;margin-bottom:6px;">
+                Uploading: <span data-bind="text: uploadFilename"></span>
+            </div>
+            <div class="progress progress-striped active" style="margin:6px 0;height:24px;">
+                <div class="bar" data-bind="style: {width: uploadPercent() + '%'}"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:16px;font-weight:bold;" data-bind="text: uploadPercent() + '%'"></span>
+                <span data-bind="visible: uploadEta() !== null, text: uploadEta" style="color:#666;"></span>
+                <span data-bind="visible: uploadSpeed() !== null, text: uploadSpeed" style="color:#999;font-size:12px;"></span>
+                <button class="btn btn-small btn-danger" data-bind="click: cancelUpload">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Webcam -->
+        <div class="octocarvera-webcam">
+            <img data-bind="attr: {src: webcamUrl}" alt="Webcam" style="width:100%;max-height:400px;object-fit:contain;background:#000;">
+        </div>
+
+        <!-- Jog Controls Row -->
+        <div class="octocarvera-jog-row" data-bind="css: {'octocarvera-jog-locked': motionBlocked()}">
+
+            <!-- Jog Lock Button -->
+            <div class="octocarvera-jog-lock-panel">
+                <button class="btn octocarvera-jog-lock-btn"
+                        data-bind="click: toggleJogLock, enable: !jobActive(), css: {'octocarvera-lock-locked': jogLocked() || jobActive(), 'octocarvera-lock-unlocked': !jogLocked() && !jobActive()}"
+                        title="Lock/unlock jog controls">
+                    <i data-bind="css: {'icon-lock': jogLocked() || jobActive(), 'icon-unlock': !jogLocked() && !jobActive()}"></i>
+                </button>
+            </div>
+
+            <!-- XY Knob -->
+            <div class="octocarvera-jog-knob-container">
+                <h3>XY Jog</h3>
+                <div class="octocarvera-knob-wrapper">
+                    <canvas id="octocarvera-xy-knob" width="200" height="200"
+                            data-bind="event: {mousedown: knobMouseDown, mousemove: knobMouseMove, mouseup: knobMouseUp, mouseleave: knobMouseUp,
+                                               touchstart: knobTouchStart, touchmove: knobTouchMove, touchend: knobTouchEnd}"
+                            style="border:1px solid #ccc;border-radius:50%;cursor:crosshair;"></canvas>
+                    <span class="octocarvera-axis-label octocarvera-label-yp">Y+</span>
+                    <span class="octocarvera-axis-label octocarvera-label-ym">Y-</span>
+                    <span class="octocarvera-axis-label octocarvera-label-xp">X+</span>
+                    <span class="octocarvera-axis-label octocarvera-label-xm">X-</span>
+                </div>
+
+                <!-- Step Size -->
+                <div class="octocarvera-step-row">
+                    <strong>Step(mm):</strong>
+                    <div class="btn-group octocarvera-step-buttons">
+                        <!-- ko foreach: jogSteps -->
+                        <button class="btn btn-small" data-bind="text: $data, click: $parent.setJogStep, css: {'btn-primary': $parent.jogStep() === $data}"></button>
+                        <!-- /ko -->
+                    </div>
+                </div>
+
+                <!-- Direction Buttons -->
+                <div class="octocarvera-direction-row">
+                    <div class="octocarvera-direction-grid">
+                        <div></div>
+                        <button class="btn" data-bind="click: jogYPlus, enable: motionAllowed" title="Y+">&#9650;<br><small>Y+</small></button>
+                        <div></div>
+
+                        <button class="btn" data-bind="click: jogXMinus, enable: motionAllowed" title="X-">&#9664;<br><small>X-</small></button>
+                        <button class="btn btn-info" data-bind="click: gotoWorkOrigin, enable: gotoAllowed" title="Work Origin">&#8962;</button>
+                        <button class="btn" data-bind="click: jogXPlus, enable: motionAllowed" title="X+">&#9654;<br><small>X+</small></button>
+
+                        <div></div>
+                        <button class="btn" data-bind="click: jogYMinus, enable: motionAllowed" title="Y-">&#9660;<br><small>Y-</small></button>
+                        <div></div>
+                    </div>
+
+                    <div class="octocarvera-direction-z">
+                        <button class="btn" data-bind="click: jogZUp, enable: motionAllowed" title="Z+">&#9650;<br><small>Z+</small></button>
+                        <button class="btn" data-bind="click: jogZDown, enable: motionAllowed" title="Z-">&#9660;<br><small>Z-</small></button>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Spindle + Go To -->
+            <div class="octocarvera-position-panel">
+                <h3>Spindle
+                    <button class="btn btn-small btn-success" data-bind="click: spindleOn, enable: !jogLocked() && canSpindle(), attr: {title: spindleAllowed() ? '' : 'No cutting tool loaded (T1–T100 required)'}">On</button>
+                    <button class="btn btn-small btn-danger" data-bind="click: spindleOff, enable: canSpindleOff">Off</button>
+                </h3>
+                <div class="octocarvera-override">
+                    <small>Feed:</small>
+                    <input type="range" min="10" max="200" step="10" id="octocarvera-feed-slider" />
+                    <span data-bind="text: feedOverride() + '%'" class="octocarvera-override-value">100%</span>
+                </div>
+                <div class="octocarvera-override">
+                    <small>Spindle:</small>
+                    <input type="range" min="10" max="200" step="10" id="octocarvera-spindle-slider" />
+                    <span data-bind="text: spindleOverride() + '%'" class="octocarvera-override-value">100%</span>
+                </div>
+
+                <h3>Go To
+                    <button class="btn btn-mini" data-bind="click: refreshGotoPositions" title="Reset to current work position">
+                        <i class="icon-refresh"></i>
+                    </button>
+                </h3>
+                <div class="octocarvera-goto-header">
+                    <strong>Position</strong>
+                    <span class="octocarvera-goto-step">
+                        Step
+                        <input type="number" class="input-nospin octocarvera-step-input"
+                               step="0.500" min="0.001" max="10.000"
+                               data-bind="value: gotoStep,
+                                          event: { blur: function() { gotoStep(parseFloat(gotoStep() || 1).toFixed(3)); } }" />
+                    </span>
+                </div>
+                <table class="octocarvera-goto-table">
+                    <tr>
+                        <td><strong>X</strong></td>
+                        <td>
+                            <div class="input-prepend input-append">
+                                <button class="btn" data-bind="click: function() { nudgeCoord('X', -1); }">-</button>
+                                <input type="number" class="input-nospin octocarvera-coord-input"
+                                       step="1.000" min="-300.000" max="300.000"
+                                       data-bind="value: gotoX,
+                                                  event: { blur: function() { gotoX(parseFloat(gotoX() || 0).toFixed(3)); } }" />
+                                <button class="btn" data-bind="click: function() { nudgeCoord('X', 1); }">+</button>
+                            </div>
+                        </td>
+                        <td><button class="btn btn-mini" data-bind="event: {mousedown: goToX}, enable: gotoAllowed">Go</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Y</strong></td>
+                        <td>
+                            <div class="input-prepend input-append">
+                                <button class="btn" data-bind="click: function() { nudgeCoord('Y', -1); }">-</button>
+                                <input type="number" class="input-nospin octocarvera-coord-input"
+                                       step="1.000" min="-300.000" max="300.000"
+                                       data-bind="value: gotoY,
+                                                  event: { blur: function() { gotoY(parseFloat(gotoY() || 0).toFixed(3)); } }" />
+                                <button class="btn" data-bind="click: function() { nudgeCoord('Y', 1); }">+</button>
+                            </div>
+                        </td>
+                        <td><button class="btn btn-mini" data-bind="event: {mousedown: goToY}, enable: gotoAllowed">Go</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Z</strong></td>
+                        <td>
+                            <div class="input-prepend input-append">
+                                <button class="btn" data-bind="click: function() { nudgeCoord('Z', -1); }">-</button>
+                                <input type="number" class="input-nospin octocarvera-coord-input"
+                                       step="1.000" min="-300.000" max="300.000"
+                                       data-bind="value: gotoZ,
+                                                  event: { blur: function() { gotoZ(parseFloat(gotoZ() || 0).toFixed(3)); } }" />
+                                <button class="btn" data-bind="click: function() { nudgeCoord('Z', 1); }">+</button>
+                            </div>
+                        </td>
+                        <td><button class="btn btn-mini" data-bind="event: {mousedown: goToZ}, enable: gotoAllowed">Go</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>A</strong></td>
+                        <td>
+                            <div class="input-prepend input-append">
+                                <button class="btn" data-bind="click: function() { nudgeCoord('A', -1); }">-</button>
+                                <input type="number" class="input-nospin octocarvera-coord-input"
+                                       step="1.000" min="-360.000" max="360.000"
+                                       data-bind="value: gotoA,
+                                                  event: { blur: function() { gotoA(parseFloat(gotoA() || 0).toFixed(3)); } }" />
+                                <button class="btn" data-bind="click: function() { nudgeCoord('A', 1); }">+</button>
+                            </div>
+                        </td>
+                        <td><button class="btn btn-mini" data-bind="event: {mousedown: goToA}, enable: gotoAllowed">Go</button></td>
+                    </tr>
+                </table>
+                <button class="btn btn-small btn-primary" data-bind="click: goToAll, enable: gotoAllowed" style="width:100%;margin-top:4px;">Go To All</button>
+            </div>
+        </div>
+
+        <!-- Overrides are in the sidebar -->
+
+        <div data-bind="visible: !connected() && !uploadInProgress()" class="octocarvera-tab-disconnected">
+            <p><em>Not connected to Carvera. Connect via the Connection panel.</em></p>
+        </div>
+
+    </div>
+</div>

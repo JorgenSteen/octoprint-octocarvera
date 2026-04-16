@@ -1,0 +1,27 @@
+<div id="sidebar_plugin_octocarvera_machine_status">
+    <div data-bind="visible: connected">
+        <table class="table table-condensed octocarvera-status-table">
+            <tr><td colspan="4"><strong>Machine Position</strong></td></tr>
+            <tr><td>X</td><td data-bind="text: machineX"></td><td>Y</td><td data-bind="text: machineY"></td></tr>
+            <tr><td>Z</td><td data-bind="text: machineZ"></td><td>A</td><td data-bind="text: machineA"></td></tr>
+            <tr><td colspan="4"><strong>Work Position</strong></td></tr>
+            <tr><td>X</td><td data-bind="text: workX"></td><td>Y</td><td data-bind="text: workY"></td></tr>
+            <tr><td>Z</td><td data-bind="text: workZ"></td><td>A</td><td data-bind="text: workA"></td></tr>
+        </table>
+        <table class="table table-condensed octocarvera-status-table">
+            <tr><td>Feed</td><td><span data-bind="text: feedCurrent"></span> / <span data-bind="text: feedMax"></span> mm/min</td></tr>
+            <tr><td>Override</td><td><span data-bind="text: feedOverrideDisplay"></span>%</td></tr>
+            <tr><td>Spindle</td><td><span data-bind="text: spindleCurrent"></span> / <span data-bind="text: spindleMax"></span> RPM</td></tr>
+            <tr><td>Override</td><td><span data-bind="text: spindleOverrideDisplay"></span>%</td></tr>
+            <tr><td>Temp</td><td><span data-bind="text: spindleTemp"></span> &deg;C</td></tr>
+            <tr><td>Tool</td><td><span data-bind="text: toolDisplayName"></span></td></tr>
+            <tr><td>Probe</td><td><span data-bind="text: wpVoltage"></span>v</td></tr>
+            <tr><td>Laser</td><td><span data-bind="text: laserMode() ? 'ON' : 'OFF'"></span> <span data-bind="text: laserScale"></span>%</td></tr>
+            <tr><td>Model</td><td><span data-bind="text: machineModel"></span></td></tr>
+            <tr data-bind="visible: playbackPercent() !== null"><td>Job</td><td><span data-bind="text: playbackPercent"></span>% (<span data-bind="text: playbackElapsed"></span>)</td></tr>
+        </table>
+    </div>
+    <div data-bind="visible: !connected()">
+        <p><em>Not connected</em></p>
+    </div>
+</div>

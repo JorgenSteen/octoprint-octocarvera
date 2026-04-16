@@ -1,0 +1,26 @@
+<div id="sidebar_plugin_octocarvera_transfer">
+
+    <!-- File Select & Send -->
+    <div data-bind="visible: !uploadInProgress()">
+        <select id="octocarvera-upload-select" style="width:100%;margin-bottom:4px;font-size:12px;"
+                data-bind="options: octoprintFiles, optionsText: 'name', optionsValue: 'name', optionsCaption: 'Select file...'">
+        </select>
+        <button class="btn btn-small btn-primary" style="width:100%;" data-bind="click: uploadToCarvera, enable: selectedUploadFile()" title="Send to Carvera SD">
+            <i class="icon-upload"></i> Send to Carvera
+        </button>
+    </div>
+
+    <!-- Upload Progress -->
+    <div data-bind="visible: uploadInProgress">
+        <strong style="font-size:12px;">Uploading: <span data-bind="text: uploadFilename"></span></strong>
+        <div class="progress progress-striped active" style="margin:4px 0;height:16px;">
+            <div class="bar" data-bind="style: {width: uploadPercent() + '%'}"></div>
+        </div>
+        <small data-bind="text: uploadPercent() + '%'"></small>
+        <span data-bind="visible: uploadEta() !== null, text: uploadEta" style="font-size:11px;color:#666;margin-left:4px;"></span>
+        <br>
+        <span data-bind="visible: uploadSpeed() !== null, text: uploadSpeed" style="font-size:11px;color:#999;"></span>
+        <button class="btn btn-mini btn-danger" data-bind="click: cancelUpload" style="margin-left:4px;">Cancel</button>
+    </div>
+
+</div>

@@ -1,0 +1,103 @@
+<div id="sidebar_plugin_octocarvera_files">
+
+    <!-- Toolbar -->
+    <div class="octocarvera-sd-toolbar">
+        <div class="btn-group">
+            <a class="btn btn-mini dropdown-toggle" data-toggle="dropdown" href="#" title="File list settings">
+                <i class="fas fa-wrench"></i>
+            </a>
+            <ul class="dropdown-menu">
+                <li><a href="#" data-bind="click: function() { sdChangeSorting('name'); }"><i class="fas fa-check" data-bind="style: {visibility: sdSortBy() === 'name' ? 'visible' : 'hidden'}"></i> Sort by name</a></li>
+                <li><a href="#" data-bind="click: function() { sdChangeSorting('date'); }"><i class="fas fa-check" data-bind="style: {visibility: sdSortBy() === 'date' ? 'visible' : 'hidden'}"></i> Sort by date</a></li>
+                <li><a href="#" data-bind="click: function() { sdChangeSorting('size'); }"><i class="fas fa-check" data-bind="style: {visibility: sdSortBy() === 'size' ? 'visible' : 'hidden'}"></i> Sort by size</a></li>
+                <li class="divider"></li>
+                <li class="dropdown-submenu">
+                    <a href="#"><i class="fas fa-check" style="visibility: hidden"></i> Folders</a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-bind="click: function() { sdChangeListStyle('folders_files'); }"><i class="fas fa-check" data-bind="style: {visibility: sdListStyle() === 'folders_files' ? 'visible' : 'hidden'}"></i> Folders, then files</a></li>
+                        <li><a href="#" data-bind="click: function() { sdChangeListStyle('files_folders'); }"><i class="fas fa-check" data-bind="style: {visibility: sdListStyle() === 'files_folders' ? 'visible' : 'hidden'}"></i> Files, then folders</a></li>
+                        <li><a href="#" data-bind="click: function() { sdChangeListStyle('mixed'); }"><i class="fas fa-check" data-bind="style: {visibility: sdListStyle() === 'mixed' ? 'visible' : 'hidden'}"></i> Mixed</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <a class="btn btn-mini" href="#" data-bind="click: refreshFiles, css: {disabled: sdLoading()}" title="Refresh file list">
+            <i class="fas fa-sync"></i>
+        </a>
+    </div>
+
+    <!-- Search -->
+    <form class="form-search" data-bind="submit: function() {}">
+        <div class="search-query-with-clear" data-bind="css: {'active-clear': sdSearchQuery}">
+            <input type="search" class="input-block search-query" data-bind="value: sdSearchQuery, valueUpdate: 'input'" placeholder="Search..." spellcheck="false">
+            <span class="search-clear" data-bind="click: sdClearSearch"><i class="fas fa-times"></i></span>
+        </div>
+    </form>
+
+    <!-- Loading / Error -->
+    <div data-bind="visible: sdLoading" style="padding:4px;color:#999;"><em>Loading...</em></div>
+    <div data-bind="visible: sdError" class="alert alert-error" style="padding:4px 8px;margin:4px 0;font-size:11px;">
+        <span data-bind="text: sdError"></span>
+    </div>
+
+    <!-- File List (using OctoPrint's gcode_files classes) -->
+    <div class="gcode_files" data-bind="visible: !sdLoading()">
+
+        <!-- Back navigation — visible whenever we're below the SD root so
+             the user can reach /sd to see config.txt, firmware.bin, etc. -->
+        <div class="entry back clickable" data-bind="visible: sdPath() !== '/sd', click: navigateUp">
+            <div class="back-arrow"><i class="fas fa-arrow-left"></i> Back</div>
+            <div class="back-path"><small class="muted">Currently in <span data-bind="text: sdPath"></span></small></div>
+        </div>
+
+        <!-- File/folder entries -->
+        <div class="scroll-wrapper" data-bind="foreach: filteredSdFiles">
+
+            <!-- Folder entry -->
+            <!-- ko if: is_dir -->
+            <div class="entry folder">
+                <div class="title clickable" data-bind="click: function() { $parent.navigateToDir(name); }">
+                    <i class="fas fa-folder-open"></i> <span data-bind="text: name"></span>
+                </div>
+                <div class="uploaded">Updated: <span data-bind="text: $parent.formatTimeAgo(date), attr: { title: date }"></span></div>
+                <div class="btn-group action-buttons">
+                    <div class="btn btn-mini btn-files-delete" data-bind="click: function(data, event) { $parent.sdDeleteFile($data); }" title="Remove" role="link">
+                        <i class="far fa-trash-alt"></i>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+
+            <!-- File entry -->
+            <!-- ko ifnot: is_dir -->
+            <div class="entry machinecode">
+                <div class="title" data-bind="text: name"></div>
+                <div class="uploaded">Updated: <span data-bind="text: $parent.formatTimeAgo(date), attr: { title: date }"></span></div>
+                <div class="size">Size: <span data-bind="text: $parent.formatSize(size)"></span></div>
+                <div class="btn-group action-buttons">
+                    <div class="btn btn-mini" data-bind="click: function(data, event) { $parent.sdMoveFile($data); }" title="Rename / move" role="link">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                    <div class="btn btn-mini btn-files-delete" data-bind="click: function(data, event) { $parent.sdDeleteFile($data); }" title="Remove" role="link">
+                        <i class="far fa-trash-alt"></i>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+
+        </div>
+
+        <!-- Empty state -->
+        <div data-bind="visible: filteredSdFiles().length === 0 && !sdLoading() && !sdError()" style="padding:8px;color:#999;font-size:12px;">
+            <em data-bind="text: sdSearchQuery() ? 'No matches.' : 'No files. Click refresh to load.'"></em>
+        </div>
+    </div>
+
+    <!-- Create Folder -->
+    <div style="margin-top: 6px;">
+        <span class="btn addfolder-button span12" data-bind="click: sdCreateFolder" style="width:100%;box-sizing:border-box;">
+            <i class="fas fa-folder"></i> Create folder...
+        </span>
+    </div>
+
+</div>
