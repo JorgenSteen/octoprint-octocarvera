@@ -12,14 +12,13 @@ OctoCarvera connects your Carvera and Carvera Air to [OctoPrint](https://octopri
 
 ## Features
 
-- **Real-time monitoring** — Live position (WPos + MPos), feed rate, spindle speed, tool number, laser status, and machine state at 0.3s polling
+- **Real-time monitoring** — Live position (WPos + MPos), feed rate, spindle speed, tool number, laser status, and machine state at 0.3s without polling. Some polling is done to keep octoprint happy, but this is default at 10s and configurable.
 - **Job control** — Pause, resume, and cancel running jobs with job progress display (percent + elapsed time)
 - **Jog controls** — XY knob, direction buttons, Z slider with step sizes, jog lock toggle
 - **Navigation presets** — Clearance, work origin, anchor 1, anchor 2
 - **Spindle control** — On/off with safety guard (blocks spindle when no cutting tool loaded)
 - **Feed & spindle overrides** — Real-time override sliders
 - **File management** — Browse Carvera SD card, upload files via XMODEM, create folders, rename/move/delete files
-- **Firmware flashing** — Upload firmware via OctoPrint with atomic staging (can't brick from failed upload)
 - **MQTT / Home Assistant** — Publish machine state, positions, and sensor data for HA auto-discovery (requires [OctoPrint-MQTT](https://github.com/OctoPrint/OctoPrint-MQTT) plugin)
 - **Webcam** — Use OctoPrint's built-in webcam support to watch your machine remotely
 - **Activity-based UI** — Buttons enable/disable based on machine state (idle, jogging, running, paused, alarm)
