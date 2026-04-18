@@ -45,8 +45,8 @@ ssh user@your-pi-ip
 
 # Install from source
 cd /tmp
-git clone https://github.com/JorgenSteen/OctoCarvera.git
-cd OctoCarvera
+git clone https://github.com/JorgenSteen/octoprint-octocarvera.git
+cd octoprint-octocarvera
 ~/oprint/bin/pip install .
 
 # Restart OctoPrint
@@ -98,14 +98,14 @@ OctoCarvera adds several UI sections to OctoPrint:
 Install via OctoPrint's Plugin Manager:
 
 1. Open OctoPrint Settings > Plugin Manager > Get More
-2. Paste this URL: `https://github.com/JorgenSteen/OctoCarvera/archive/main.zip`
+2. Paste this URL: `https://github.com/JorgenSteen/octoprint-octocarvera/archive/main.zip`
 3. Click Install
 4. Restart OctoPrint
 
 Or install manually:
 
 ```bash
-~/oprint/bin/pip install "https://github.com/JorgenSteen/OctoCarvera/archive/main.zip"
+~/oprint/bin/pip install "https://github.com/JorgenSteen/octoprint-octocarvera/archive/main.zip"
 ```
 
 ## License
