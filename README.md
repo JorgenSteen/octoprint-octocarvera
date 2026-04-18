@@ -1,12 +1,12 @@
 # OctoCarvera
 
-OctoPrint plugin for monitoring and controlling the **Carvera Air** CNC machine over USB serial.
+OctoPrint plugin for monitoring and controlling the **Carvera** and **Carvera Air** CNC machine over USB serial.
 
 ![OctoCarvera](screenshot/OctoCarvera.png)
 
 ## What Is This?
 
-OctoCarvera connects your Carvera Air to [OctoPrint](https://octoprint.org), giving you access to the mature OctoPrint ecosystem for remote monitoring. View your machine from your phone, watch jobs via webcam, get notifications, and expose machine data to Home Assistant via MQTT — all without replacing the Carvera Controller app.
+OctoCarvera connects your Carvera and Carvera Air to [OctoPrint](https://octoprint.org), giving you access to the mature OctoPrint ecosystem for remote monitoring. View your machine from your phone, watch jobs via webcam, get notifications, and expose machine data to Home Assistant via MQTT — all without replacing the Carvera Controller app.
 
 **This plugin is a companion, not a replacement.** The Carvera Controller app remains the primary tool for homing, calibration, tool changes, and job setup. OctoCarvera adds remote visibility and basic controls on top.
 
