@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "OctoCarvera"
-version = "0.5.13"
+version = "0.5.17"
 description = "OctoPrint integration for the Carvera Air CNC machine over USB serial"
 authors = [
     {name = "Jorgen Steen"}

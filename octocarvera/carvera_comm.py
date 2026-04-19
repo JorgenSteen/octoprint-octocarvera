@@ -93,10 +93,12 @@ class Communication(ABC):
 
     # ~~~ Connection lifecycle ~~~
 
-    def on_connect_init(self, send_init_flag):
+    def on_connect_init(self, send_init_flag, auto_unlock=False):
         """Run connection-time init. Override in subclasses to send wake bytes."""
         if send_init_flag:
             self._send_command(CMD_VERSION)
+        if auto_unlock:
+            self.unlock()
 
     def post_cancel_cleanup(self):
         """Run after a cancel settles. Base: unlock."""
@@ -112,6 +114,61 @@ class PlainTextCommunication(Communication):
 
     name = "plain_text"
 
+    def serial_factory(self, port, baudrate, connection_timeout):
+        """Open the port and clear the DTR-induced Alarm BEFORE OctoPrint's
+        hello handshake runs.
+
+        The kernel asserts DTR on USB open, which drops the Carvera into
+        Alarm. OctoPrint's ``$G`` handshake then gets no response (the
+        firmware ignores commands while alarmed) and the connection
+        times out before our plugin's ``on_connect_init`` ever fires.
+
+        By opening the serial ourselves and writing ``\\n;\\n$X\\n`` once
+        DTR has settled, the Carvera is already in Idle by the time
+        OctoPrint sends its first ``$G``.
+        """
+        import time
+
+        import serial as pyserial
+
+        if port is None or port in ("AUTO", "VIRTUAL"):
+            # AUTO needs OctoPrint's port scanner; VIRTUAL is the test
+            # pseudo-port. Skip pre-unlock for both.
+            return None
+        try:
+            ser = pyserial.Serial(
+                str(port),
+                baudrate,
+                timeout=connection_timeout,
+                writeTimeout=10000,
+            )
+        except Exception:
+            self._logger.exception(
+                "Pre-handshake open failed for %s; falling back to default", port
+            )
+            return None
+        try:
+            time.sleep(0.3)  # let DTR settle and firmware finish its boot
+            try:
+                ser.reset_input_buffer()
+            except Exception:
+                pass
+            ser.write(b"\n;\n$X\n")
+            time.sleep(0.2)
+            try:
+                ser.reset_input_buffer()
+            except Exception:
+                pass
+            self._logger.info(
+                "Pre-handshake unlock written to %s @ %d", port, baudrate
+            )
+        except Exception:
+            self._logger.exception(
+                "Pre-handshake unlock write failed on %s; handing port to OctoPrint anyway",
+                port,
+            )
+        return ser
+
     def estop(self):
         self._send_realtime(RT_SOFT_RESET)
 
@@ -124,7 +181,7 @@ class PlainTextCommunication(Communication):
     def cancel(self):
         self._send_realtime(RT_SOFT_RESET)
 
-    def on_connect_init(self, send_init_flag):
+    def on_connect_init(self, send_init_flag, auto_unlock=False):
         if send_init_flag:
             self._send_command(INIT_SEQUENCE)
             # Community firmware 2.0.2c-RC2 replies to `version` without a
@@ -134,6 +191,14 @@ class PlainTextCommunication(Communication):
             # command waiting for an ack — the received_hook still parses
             # the `version = ...` response and populates firmware state.
             self._send_raw_text(CMD_VERSION)
+        if auto_unlock:
+            # Clear the DTR-induced Alarm that fires on every USB port
+            # open (see docs/notable_behavior.md). Independent of the
+            # init handshake — a user may disable init but still want
+            # the alarm cleared. unlock() on this subclass bypasses the
+            # command queue because $X in Idle returns no ack on
+            # community firmware.
+            self.unlock()
 
     def unlock(self):
         # $X in Idle state on community firmware 2.0.2c-RC2 returns
@@ -217,9 +282,15 @@ class BinaryCommunication(Communication):
         # the right semantic for a job cancel, distinct from estop.
         self._send_command("abort")
 
-    def on_connect_init(self, send_init_flag):
+    def on_connect_init(self, send_init_flag, auto_unlock=False):
         if send_init_flag:
             self._send_command(CMD_VERSION)
+        if auto_unlock:
+            # Clear the DTR-induced Alarm that fires on every USB port
+            # open. Independent of the init handshake. Binary firmware
+            # acks $X via the framed transport, so the queued path is
+            # safe here.
+            self.unlock()
 
     def post_cancel_cleanup(self):
         self._send_command(CMD_UNLOCK)

@@ -68,7 +68,24 @@ After installation, go to **OctoPrint Settings > OctoCarvera**:
 1. Connect the Carvera Air to the Pi via USB cable
 2. In OctoPrint, select the serial port (`/dev/ttyUSB0`) and baud rate `115200`
 3. Click Connect
-4. The Carvera may enter Alarm state on connect (DTR signal) — click **Unlock** in the sidebar
+4. The plugin auto-clears the DTR-induced Alarm on connect. If you've disabled `auto_unlock_on_connect` in settings, click **Unlock** in the sidebar instead.
+
+### Raspberry Pi cold-boot notes
+
+When the Pi and Carvera power on simultaneously (e.g. after a power outage), a couple of OS-level things on the Pi can send extra noise at the Carvera while it's still booting. The plugin's auto-unlock handles the resulting Alarm, but it's still worth quieting the Pi side:
+
+- **Disable ModemManager** — it probes `/dev/ttyACM*` on enumeration and sends AT bytes that the Carvera doesn't appreciate:
+  ```
+  sudo systemctl mask ModemManager
+  ```
+- **Add a udev rule** as a belt-and-braces measure (works even if ModemManager is reinstalled later). Replace the VID/PID with the values reported by `lsusb` for your Carvera:
+  ```
+  # /etc/udev/rules.d/99-carvera-no-mm.rules
+  SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ENV{ID_MM_DEVICE_IGNORE}="1"
+  ```
+  Then reload: `sudo udevadm control --reload && sudo udevadm trigger`
+
+The kernel still asserts DTR on USB-CDC-ACM/FTDI port open — that's a Linux-wide behavior that can't be suppressed from userspace, which is why the plugin's auto-`$X` is the actual fix.
 
 ## Usage
 
