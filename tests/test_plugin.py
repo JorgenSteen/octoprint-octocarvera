@@ -3,7 +3,7 @@
 
 import re
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -782,3 +782,198 @@ class TestFileOperations:
         assert plugin._file_op_event.is_set()
         result = plugin.sending_gcode_hook(MagicMock(), "sending", "G0 X10", None, "G0")
         assert result == "G0 X10"
+
+
+class TestAutoUnlockOnConnect:
+    """Cold-boot recovery: opening the USB serial port toggles DTR, which
+    Carvera's Smoothieware firmware interprets as an abort and enters
+    Alarm. Plugin auto-sends $X on connect so the user doesn't have to
+    walk over and click Unlock after a power-outage reboot.
+    """
+
+    def _build_plain_text(self):
+        from octocarvera.carvera_comm import build_communication
+
+        send_command = MagicMock()
+        send_realtime = MagicMock()
+        send_raw_text = MagicMock()
+        comm = build_communication(
+            "plain_text", send_command, send_realtime, send_raw_text, MagicMock()
+        )
+        return comm, send_command, send_raw_text
+
+    def _build_binary(self):
+        from octocarvera.carvera_comm import build_communication
+
+        send_command = MagicMock()
+        send_realtime = MagicMock()
+        send_raw_text = MagicMock()
+        comm = build_communication(
+            "binary", send_command, send_realtime, send_raw_text, MagicMock()
+        )
+        return comm, send_command, send_raw_text
+
+    def test_plain_text_on_connect_init_sends_unlock_after_version(self):
+        comm, send_command, send_raw_text = self._build_plain_text()
+        comm.on_connect_init(send_init_flag=True, auto_unlock=True)
+        # Order: INIT_SEQUENCE via queue, version via raw bypass, $X via raw bypass
+        send_command.assert_called_once_with("\n;\n")
+        assert send_raw_text.call_args_list == [call("version"), call("$X")]
+
+    def test_binary_on_connect_init_sends_unlock_after_version(self):
+        comm, send_command, send_raw_text = self._build_binary()
+        comm.on_connect_init(send_init_flag=True, auto_unlock=True)
+        # Binary: both version and $X go through queue (BinaryFrameSerial acks)
+        assert send_command.call_args_list == [call("version"), call("$X")]
+        send_raw_text.assert_not_called()
+
+    def test_plain_text_auto_unlock_disabled_skips_unlock(self):
+        comm, send_command, send_raw_text = self._build_plain_text()
+        comm.on_connect_init(send_init_flag=True, auto_unlock=False)
+        send_command.assert_called_once_with("\n;\n")
+        # version still goes out, but no $X follows
+        send_raw_text.assert_called_once_with("version")
+
+    def test_binary_auto_unlock_disabled_skips_unlock(self):
+        comm, send_command, send_raw_text = self._build_binary()
+        comm.on_connect_init(send_init_flag=True, auto_unlock=False)
+        send_command.assert_called_once_with("version")
+        send_raw_text.assert_not_called()
+
+    def test_send_init_disabled_still_unlocks(self):
+        """auto_unlock is independent of send_init_flag. User may turn
+        off the init handshake but still want the DTR alarm cleared."""
+        comm, send_command, send_raw_text = self._build_plain_text()
+        comm.on_connect_init(send_init_flag=False, auto_unlock=True)
+        # No init/version, but $X still goes out via the raw-text bypass.
+        send_command.assert_not_called()
+        send_raw_text.assert_called_once_with("$X")
+
+    def test_both_flags_disabled_is_a_noop(self):
+        comm, send_command, send_raw_text = self._build_plain_text()
+        comm.on_connect_init(send_init_flag=False, auto_unlock=False)
+        send_command.assert_not_called()
+        send_raw_text.assert_not_called()
+
+    def test_binary_send_init_disabled_still_unlocks(self):
+        comm, send_command, send_raw_text = self._build_binary()
+        comm.on_connect_init(send_init_flag=False, auto_unlock=True)
+        send_command.assert_called_once_with("$X")
+        send_raw_text.assert_not_called()
+
+    def test_on_printer_connected_passes_auto_unlock_flag(self, plugin):
+        """Wiring check: _on_printer_connected reads the setting and forwards it."""
+        plugin._comm_mode = MagicMock()
+        plugin._comm_mode.name = "plain_text"
+        plugin._on_printer_connected()
+        plugin._comm_mode.on_connect_init.assert_called_once()
+        kwargs = plugin._comm_mode.on_connect_init.call_args.kwargs
+        assert kwargs.get("auto_unlock") is True
+        plugin._stop_keepalive()
+
+    def test_startup_race_branch_unlocks_via_comm_mode(self, plugin):
+        """Patch unlock on the built comm_mode and assert it's called."""
+        plugin._settings.global_get.return_value = []
+        plugin._printer.is_operational.return_value = True
+        with patch.object(
+            __import__("octocarvera.carvera_comm", fromlist=["PlainTextCommunication"]).PlainTextCommunication,
+            "unlock",
+        ) as mock_unlock:
+            plugin.on_after_startup()
+            mock_unlock.assert_called_once()
+        plugin._stop_keepalive()
+
+    def test_startup_race_branch_skips_unlock_when_setting_off(self, plugin):
+        """Auto-unlock setting disables the cold-boot recovery path too."""
+        plugin._settings.global_get.return_value = []
+        plugin._printer.is_operational.return_value = True
+
+        # get_boolean returns False only for auto_unlock_on_connect, True otherwise
+        def get_bool(keys):
+            return keys != ["auto_unlock_on_connect"]
+        plugin._settings.get_boolean.side_effect = get_bool
+
+        with patch.object(
+            __import__("octocarvera.carvera_comm", fromlist=["PlainTextCommunication"]).PlainTextCommunication,
+            "unlock",
+        ) as mock_unlock:
+            plugin.on_after_startup()
+            mock_unlock.assert_not_called()
+        plugin._stop_keepalive()
+
+    def test_default_setting_is_true(self, plugin):
+        defaults = plugin.get_settings_defaults()
+        assert defaults["auto_unlock_on_connect"] is True
+
+
+class TestHandshakeWatchdog:
+    """0.5.16: when the pre-handshake unlock runs but OctoPrint's $G
+    handshake still times out, the Carvera's MCU is latched and needs
+    a physical power cycle. Surface that instead of looping silently.
+    """
+
+    def test_arm_sets_timer(self, plugin):
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        assert plugin._handshake_watchdog is not None
+        plugin._cancel_handshake_watchdog()
+
+    def test_cancel_clears_timer(self, plugin):
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        plugin._cancel_handshake_watchdog()
+        assert plugin._handshake_watchdog is None
+
+    def test_arm_replaces_and_cancels_previous_timer(self, plugin):
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        first = plugin._handshake_watchdog
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        assert plugin._handshake_watchdog is not first
+        # The previous timer must be cancelled — otherwise two watchdogs
+        # are running and one will fire a false "unresponsive" alert.
+        assert not first.is_alive()
+        plugin._cancel_handshake_watchdog()
+
+    def test_on_printer_connected_cancels_watchdog(self, plugin):
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        plugin._comm_mode = MagicMock()
+        plugin._comm_mode.name = "plain_text"
+        plugin._on_printer_connected()
+        assert plugin._handshake_watchdog is None
+        plugin._stop_keepalive()
+
+    def test_on_printer_disconnected_cancels_watchdog(self, plugin):
+        plugin._arm_handshake_watchdog("/dev/ttyUSB0")
+        plugin._on_printer_disconnected()
+        assert plugin._handshake_watchdog is None
+
+    def test_timeout_sends_plugin_message(self, plugin):
+        plugin._on_handshake_timeout("/dev/ttyUSB0")
+        calls = plugin._plugin_manager.send_plugin_message.call_args_list
+        payloads = [c.args[1] for c in calls]
+        assert any(p.get("type") == "carvera_unresponsive" for p in payloads)
+        unresponsive = next(p for p in payloads if p.get("type") == "carvera_unresponsive")
+        assert unresponsive["port"] == "/dev/ttyUSB0"
+
+    def test_timeout_logs_warning(self, plugin):
+        plugin._on_handshake_timeout("/dev/ttyUSB0")
+        plugin._logger.warning.assert_called()
+
+    def test_serial_factory_hook_arms_watchdog_for_real_port(self, plugin):
+        # Build a real comm_mode and mock its serial_factory to return a
+        # sentinel serial object, so the hook thinks the port is live.
+        plugin._comm_mode = MagicMock()
+        plugin._comm_mode.serial_factory.return_value = MagicMock()  # pretend ser
+        plugin.serial_factory_hook(MagicMock(), "/dev/ttyUSB0", 115200, 10.0)
+        assert plugin._handshake_watchdog is not None
+        plugin._cancel_handshake_watchdog()
+
+    def test_serial_factory_hook_does_not_arm_for_virtual(self, plugin):
+        plugin._comm_mode = MagicMock()
+        plugin._comm_mode.serial_factory.return_value = None
+        plugin.serial_factory_hook(MagicMock(), "VIRTUAL", 115200, 10.0)
+        assert plugin._handshake_watchdog is None
+
+    def test_serial_factory_hook_does_not_arm_when_factory_returns_none(self, plugin):
+        plugin._comm_mode = MagicMock()
+        plugin._comm_mode.serial_factory.return_value = None
+        plugin.serial_factory_hook(MagicMock(), "/dev/ttyUSB0", 115200, 10.0)
+        assert plugin._handshake_watchdog is None

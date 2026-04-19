@@ -119,9 +119,10 @@ Known quirks, issues, and workarounds discovered during development.
 ## DTR signal toggle on USB connect causes Alarm state
 
 - **What happens**: When any host opens the USB serial port, the Carvera enters Alarm state ("Abort during cycle"). Must send `$X` to unlock.
-- **Why**: The FTDI 232R chip toggles DTR/RTS on port open, which Carvera's Smoothieware firmware interprets as an abort signal. Common with GRBL controllers using FTDI chips.
-- **Workaround**: Send `$X` unlock after connecting. OctoCarvera has an Unlock button in the sidebar.
-- **Status**: open — could potentially be fixed by disabling DTR toggle in serial config
+- **Why**: The FTDI 232R chip toggles DTR/RTS on port open, which Carvera's Smoothieware firmware interprets as an abort signal. Common with GRBL controllers using FTDI chips. The Linux kernel asserts DTR/RTS on every CDC-ACM/FTDI open via `CDC_SET_CONTROL_LINE_STATE`; this can't be suppressed from userspace.
+- **Resolution**: Plugin auto-sends `$X` immediately after the connect handshake (controlled by the `auto_unlock_on_connect` setting, default true). Cold-boot scenario where OctoPrint opens the port before the plugin loads is also covered — the on_after_startup race branch unlocks too. Manual Unlock button in the sidebar is still available for users who disable the auto behavior.
+- **Cause is not gone, just absorbed**: The DTR toggle still alarms the firmware on every open; we just clear the alarm right after instead of leaving it for the user. See README "Raspberry Pi cold-boot notes" for OS-level noise reduction (ModemManager, udev) that helps avoid extra alarm triggers piling on top.
+- **Status**: resolved in plugin (v0.3.x)
 
 ## Firmware 1.0.5 requires binary framing on ALL transports
 

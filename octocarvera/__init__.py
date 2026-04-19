@@ -107,6 +107,17 @@ class OctoCarveraPlugin(
         self._jog_pending = None       # latest-wins single-slot buffer (see _handle_jog)
         self._flash_after_upload = False
 
+        # Handshake watchdog: armed by serial_factory_hook when we hand
+        # a live port to OctoPrint, disarmed by _on_printer_connected.
+        # If it fires the Carvera is latched dead and the user needs to
+        # physically power-cycle it. The lock protects the arm/cancel
+        # race between OctoPrint's serial-factory thread and its event
+        # dispatch thread, which would otherwise allow a cancel to
+        # operate on the old timer while the new one stays armed.
+        self._handshake_watchdog = None
+        self._handshake_watchdog_lock = threading.Lock()
+        self._HANDSHAKE_TIMEOUT_SEC = 30.0
+
     # ~~~ StartupPlugin ~~~
 
     def on_after_startup(self):
@@ -124,6 +135,11 @@ class OctoCarveraPlugin(
             self._connected = True
             self._start_keepalive()
             self._send_command(CMD_VERSION)
+            # Cold-boot recovery: if OctoPrint opened the port before we
+            # got here, the DTR toggle has already alarmed the Carvera.
+            # Clear it so the user doesn't have to walk over and unlock.
+            if self._comm_mode and self._settings.get_boolean(["auto_unlock_on_connect"]):
+                self._comm_mode.unlock()
 
     def _rebuild_comm_mode(self):
         """Build the Communication strategy for the current protocol_mode setting.
@@ -221,6 +237,7 @@ class OctoCarveraPlugin(
             "serial_port": "/dev/ttyUSB0",
             "baud_rate": 115200,
             "send_init_on_connect": True,
+            "auto_unlock_on_connect": True,
             "connection_timeout": 10.0,
             "protocol_mode": "plain_text",
             "override_mode": "auto",
@@ -814,19 +831,88 @@ class OctoCarveraPlugin(
         """
         if self._comm_mode is None:
             self._rebuild_comm_mode()
-        return self._comm_mode.serial_factory(port, baudrate, connection_timeout)
+        ser = self._comm_mode.serial_factory(port, baudrate, connection_timeout)
+        if ser is not None and port not in (None, "AUTO", "VIRTUAL"):
+            # Our factory returned a real port — arm a watchdog. If the
+            # handshake doesn't complete within the timeout, the Carvera
+            # is in the unrecoverable "silent MCU" state that needs a
+            # physical power cycle.
+            self._arm_handshake_watchdog(port)
+        return ser
+
+    # ~~~ Handshake watchdog ~~~
+
+    def _arm_handshake_watchdog(self, port):
+        with self._handshake_watchdog_lock:
+            if self._handshake_watchdog is not None:
+                self._handshake_watchdog.cancel()
+            timer = threading.Timer(
+                self._HANDSHAKE_TIMEOUT_SEC, self._on_handshake_timeout, args=[port]
+            )
+            timer.daemon = True
+            self._handshake_watchdog = timer
+            timer.start()
+
+    def _cancel_handshake_watchdog(self):
+        with self._handshake_watchdog_lock:
+            timer = self._handshake_watchdog
+            self._handshake_watchdog = None
+        if timer is not None:
+            timer.cancel()
+
+    def _on_handshake_timeout(self, port):
+        """Fired when the handshake did not complete in time — the
+        Carvera's MCU is latched and the user must power-cycle it."""
+        self._logger.warning(
+            "Carvera unresponsive on %s after %.0fs handshake window. "
+            "FTDI is enumerated but the MCU isn't replying to $X/$G. "
+            "Machine needs a physical power cycle.",
+            port,
+            self._HANDSHAKE_TIMEOUT_SEC,
+        )
+        try:
+            self._plugin_manager.send_plugin_message(
+                self._identifier,
+                {
+                    "type": "carvera_unresponsive",
+                    "port": port,
+                    "message": (
+                        "Carvera didn't respond to the connect handshake. "
+                        "The machine is likely in a latched fault state — "
+                        "please power-cycle it (wall unplug, wait 10s, replug)."
+                    ),
+                },
+            )
+        except Exception:
+            self._logger.exception("Failed to send carvera_unresponsive plugin message")
+        if self._mqtt_publish:
+            try:
+                topic = "{}/{}/alert".format(self._MQTT_TOPIC_BASE, self._machine_slug)
+                self._mqtt_publish(
+                    topic,
+                    {"type": "carvera_unresponsive", "port": port},
+                )
+            except Exception:
+                self._logger.exception("Failed to MQTT-publish unresponsive alert")
 
     # ~~~ Connection handling ~~~
 
     def _on_printer_connected(self):
+        self._cancel_handshake_watchdog()
+        if self._comm_mode is None:
+            # Mirror the serial_factory_hook guard — if on_after_startup
+            # hasn't built the strategy yet (early race), do it now.
+            self._rebuild_comm_mode()
         self._connected = True
         send_init = self._settings.get_boolean(["send_init_on_connect"])
+        auto_unlock = self._settings.get_boolean(["auto_unlock_on_connect"])
         self._logger.info(
-            "Carvera connected (mode=%s, send_init=%s)",
-            self._comm_mode.name if self._comm_mode else "?",
+            "Carvera connected (mode=%s, send_init=%s, auto_unlock=%s)",
+            self._comm_mode.name,
             send_init,
+            auto_unlock,
         )
-        self._comm_mode.on_connect_init(send_init)
+        self._comm_mode.on_connect_init(send_init, auto_unlock=auto_unlock)
         self._start_keepalive()
 
         self._plugin_manager.send_plugin_message(
@@ -835,6 +921,7 @@ class OctoCarveraPlugin(
         )
 
     def _on_printer_disconnected(self):
+        self._cancel_handshake_watchdog()
         self._logger.info("Carvera disconnected")
         self._connected = False
         self._grbl_state = "Unknown"
